@@ -1,6 +1,6 @@
 # Exercice 3 : data lake, Airflow et data warehouse en Docker
 
-Un `docker compose up` monte toute la chaîne : les Parquet bruts sont déposés dans un bucket S3, un DAG Airflow les nettoie puis les charge dans un data warehouse PostgreSQL, et un Jupyter permet d'explorer les deux.
+Un `docker compose up` monte toute la chaîne : les Parquet bruts sont déposés dans un bucket S3, un DAG Airflow les nettoie puis les charge dans un data warehouse PostgreSQL, un Jupyter permet d'explorer les deux, et un site web publie les graphiques validés dans Jupyter.
 
 ## Lancer
 
@@ -32,10 +32,11 @@ Le DAG prend environ 20 minutes (dont 15 pour insérer les 9,4 M annonces dans P
 | `dw` | Data warehouse PostgreSQL (base `dw`) et métadonnées Airflow (base `airflow`) | `localhost:5433` (`dw` / `dw`) |
 | `airflow` | Orchestration et visualisation des flux | http://localhost:8080 |
 | `jupyter` | Prototypage Python (`notebooks/exploration.ipynb`) | http://localhost:8888 |
+| `site` | Site Flask qui affiche les graphiques (voir plus bas) | http://localhost:5000 |
 
 Les ports n'écoutent que sur `127.0.0.1` : les services, sans mot de passe pour Airflow et Jupyter, ne sont pas accessibles depuis le réseau.
 
-Airflow et Jupyter partagent la même image (`Dockerfile`) : Airflow 3.3, DuckDB et JupyterLab. DuckDB lit et écrit directement dans le bucket et dans PostgreSQL : pas de fichier intermédiaire en local.
+Airflow et Jupyter partagent la même image (`Dockerfile`) : Airflow 3.3, DuckDB, JupyterLab, Plotly et Chromium (pour l'export PNG). DuckDB lit et écrit directement dans le bucket et dans PostgreSQL : pas de fichier intermédiaire en local.
 
 MinIO a été remplacé par RustFS parce que les images MinIO ne sont plus publiées sur Docker Hub. Le protocole S3 est le même.
 
@@ -92,6 +93,32 @@ flowchart LR
 | Bilans : comptes consolidés écartés, un bilan par SIREN et par exercice (complet prioritaire sur simplifié), clôture entre 2000 et 2030 | Ne pas compter deux fois la même entreprise ; écarter les dates aberrantes (1919, 2029…). |
 | Liasse : `FL` / `HN` / `HK` (régime normal), `210+214+218` / `310` / `306` (simplifié) | Codes du chiffre d'affaires, du résultat et de l'impôt sur les bénéfices. |
 | Résultat publié mais impôt absent → impôt = 0 | Une ligne vide de la liasse vaut zéro. |
+
+## Graphiques sur le web
+
+Les graphiques validés dans Jupyter sont publiés sur http://localhost:5000. Pour qu'ils soient strictement identiques, ils sont écrits **une seule fois**, dans `commun/graphiques.py` : une fonction par graphique, qui interroge le data warehouse et renvoie une figure Plotly. Le notebook l'appelle (`graphiques.creations_radiations(con)`), le DAG aussi.
+
+```mermaid
+flowchart LR
+    G[commun/graphiques.py] --> J[Jupyter] & P[DAG publication_graphiques]
+    P --> H[graphs/*.html : WebGL] & I[graphs/*.png : PDF]
+    H --> S[site Flask]
+```
+
+Le DAG `publication_graphiques` se lance à la main, après `chargement_dw` (le déclenchement automatique est prêt, en commentaire, dans le DAG) :
+
+```bash
+docker compose exec airflow airflow dags trigger publication_graphiques
+```
+
+Il écrit deux versions de chaque graphique dans `graphs/` (non versionné) :
+
+| Fichier | Tracés | Usage |
+|---|---|---|
+| `<nom>.html` | `Scattergl` : dessin par le GPU (WebGL), fluide même avec beaucoup de points | Site web ; plotly.js inclus, fonctionne sans internet |
+| `<nom>.png` | `Scatter`, rendu par kaleido + Chromium | Rapport PDF |
+
+Le site (`site/`) ne dépend que de Flask : il liste les HTML de `graphs/` et les affiche, sans accès à la base ni code de dataviz. Ajouter un graphique : une fonction dans `commun/graphiques.py`, inscrite dans `GRAPHIQUES`.
 
 ## Forme finale des données
 

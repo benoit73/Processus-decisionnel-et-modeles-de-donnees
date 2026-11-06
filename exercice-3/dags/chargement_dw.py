@@ -148,7 +148,7 @@ def chargement_dw():
             FROM read_parquet('{CLEAN}/bilans.parquet')
         """)
 
-    @task
+    @task  # @task(outlets=[Asset("dw")]) pour déclencher publication_graphiques à la fin du chargement
     def controler():
         con = connexion()
         for table in ("dim_temps", "dim_territoire", "dim_entreprise", "fait_annonce", "fait_bilan"):

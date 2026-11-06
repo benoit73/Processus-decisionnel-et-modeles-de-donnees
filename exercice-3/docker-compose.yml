@@ -6,6 +6,8 @@ x-acces: &acces
   S3_SECRET_KEY: admin12345
   S3_BUCKET: datalake
   DW_DSN: host=dw port=5432 dbname=dw user=dw password=dw
+  PYTHONPATH: /opt/airflow/commun   # commun/graphiques.py, partagé par Jupyter et Airflow
+  GRAPHS_DIR: /opt/airflow/graphs
 
 services:
   # Data lake : stockage S3 (RustFS, compatible MinIO/AWS)
@@ -72,7 +74,7 @@ services:
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
     ports: ["127.0.0.1:8080:8080"]
-    volumes: [./dags:/opt/airflow/dags]
+    volumes: [./dags:/opt/airflow/dags, ./commun:/opt/airflow/commun:ro, ./graphs:/opt/airflow/graphs]
     depends_on:
       dw: {condition: service_healthy}
       datalake-init: {condition: service_completed_successfully}
@@ -86,7 +88,15 @@ services:
                  "--IdentityProvider.token=", "--ServerApp.root_dir=/opt/airflow/notebooks"]
     environment: *acces
     ports: ["127.0.0.1:8888:8888"]
-    volumes: [./notebooks:/opt/airflow/notebooks]
+    volumes: [./notebooks:/opt/airflow/notebooks, ./commun:/opt/airflow/commun:ro]
+
+  # Site de consultation des graphiques : http://localhost:5000
+  site:
+    build: ./site
+    environment:
+      GRAPHS_DIR: /graphs
+    ports: ["127.0.0.1:5000:5000"]
+    volumes: ["./graphs:/graphs:ro"]
 
 volumes:
   datalake:

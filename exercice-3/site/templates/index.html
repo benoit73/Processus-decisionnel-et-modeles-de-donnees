@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speak with data</title>
+  <style>
+    body { margin: 0 auto; max-width: 1200px; padding: 24px 16px; font-family: system-ui, sans-serif;
+           color: #0b0b0b; background: #fcfcfb; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    p { color: #52514e; margin: 0 0 24px; }
+    iframe { display: block; width: 100%; height: 600px; border: 1px solid #e5e4e0; border-radius: 8px;
+             background: #fff; margin-bottom: 24px; }
+    code { background: #efeeea; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Speak with data</h1>
+  <p>Graphiques du data warehouse, issus du même code que le notebook Jupyter.</p>
+  {% for nom in graphiques %}
+    <iframe src="{{ url_for('graphique', nom=nom) }}" title="{{ nom }}" loading="lazy"></iframe>
+  {% else %}
+    <p>Aucun graphique pour l'instant : lancer le DAG <code>publication_graphiques</code> dans Airflow.</p>
+  {% endfor %}
+</body>
+</html>

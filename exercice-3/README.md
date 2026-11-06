@@ -130,6 +130,21 @@ docker compose exec airflow airflow dags trigger rapport
 
 La source est `rapport/rapport.qmd`, un document [Quarto](https://quarto.org) : du Markdown avec des cellules Python exécutées au rendu. Elles appellent `commun/graphiques.py` exactement comme le notebook (`creations_radiations`, `is_par_tranche`), donc les chiffres et le graphique sont les mêmes. Le PDF est composé par [Typst](https://typst.app), inclus dans Quarto : pas de LaTeX à installer.
 
+## Mesures de la base
+
+Le DAG `mesures` (lancement manuel, ne modifie rien) mesure le data warehouse et écrit le résultat dans `mesures/<etiquette>/` (versionné) :
+
+- **volume** : lignes, taille des données et des index, octets par ligne, pour chaque table ;
+- **temps des requêtes** : médiane de 5 exécutions (cache chaud) des requêtes du notebook, du rapport et de `controler`, plus un accès par période et un accès par SIREN ; plans d'exécution dans `plans/` ;
+- **durée du chargement** : temps de chaque tâche du dernier `chargement_dw` réussi, lu dans les métadonnées d'Airflow.
+
+```bash
+docker compose exec airflow airflow dags trigger mesures                              # -> mesures/avant/
+docker compose exec airflow airflow dags trigger mesures -c '{"etiquette": "apres"}'  # -> mesures/apres/
+```
+
+Même méthode avant et après une optimisation : comparer `mesures/avant/resultats.md` et `mesures/apres/resultats.md`.
+
 ## Forme finale des données
 
 **Deux étapes de stockage.** `raw/` garde les fichiers tels que téléchargés : on peut toujours tout recalculer. `clean/` contient les données nettoyées, au format du data warehouse, en Parquet : on les relit dans Jupyter sans toucher à la base, et le chargement ne refait pas le nettoyage.

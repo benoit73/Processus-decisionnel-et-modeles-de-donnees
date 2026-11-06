@@ -73,12 +73,15 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+      AIRFLOW_DB_DSN: host=dw port=5432 dbname=airflow user=dw password=dw   # lu par le DAG mesures
+      MESURES_DIR: /opt/airflow/mesures
     ports: ["127.0.0.1:8080:8080"]
     volumes:
       - ./dags:/opt/airflow/dags
       - ./commun:/opt/airflow/commun:ro
       - ./graphs:/opt/airflow/graphs
       - ./rapport:/opt/airflow/rapport
+      - ./mesures:/opt/airflow/mesures
     depends_on:
       dw: {condition: service_healthy}
       datalake-init: {condition: service_completed_successfully}

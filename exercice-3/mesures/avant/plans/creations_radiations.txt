@@ -1,0 +1,60 @@
+-- Notebook §3 et site : sociétés créées / radiées par année
+SELECT t.annee,
+               count(*) FILTER (WHERE a.type_annonce = 'creation') AS creations,
+               count(*) FILTER (WHERE a.type_annonce = 'radiation') AS radiations,
+               count(*) FILTER (WHERE a.motif_radiation = 'office') AS dont_office
+        FROM fait_annonce a
+        JOIN dim_entreprise e USING (siren)
+        JOIN dim_temps t USING (jour)
+        WHERE e.type_personne = 'pm' AND t.annee <= 2025
+        GROUP BY t.annee ORDER BY t.annee
+
+Finalize GroupAggregate  (cost=434531.09..434539.25 rows=31 width=26) (actual time=2644.960..2756.595 rows=18 loops=1)
+  Group Key: t.annee
+  Buffers: shared hit=16005 read=155113, temp read=74548 written=75072
+  ->  Gather Merge  (cost=434531.09..434538.32 rows=62 width=26) (actual time=2644.949..2756.578 rows=54 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=16005 read=155113, temp read=74548 written=75072
+        ->  Sort  (cost=433531.07..433531.14 rows=31 width=26) (actual time=2633.523..2633.538 rows=18 loops=3)
+              Sort Key: t.annee
+              Sort Method: quicksort  Memory: 25kB
+              Buffers: shared hit=16005 read=155113, temp read=74548 written=75072
+              Worker 0:  Sort Method: quicksort  Memory: 25kB
+              Worker 1:  Sort Method: quicksort  Memory: 25kB
+              ->  Partial HashAggregate  (cost=433529.99..433530.30 rows=31 width=26) (actual time=2633.502..2633.518 rows=18 loops=3)
+                    Group Key: t.annee
+                    Batches: 1  Memory Usage: 24kB
+                    Buffers: shared hit=15991 read=155113, temp read=74548 written=75072
+                    Worker 0:  Batches: 1  Memory Usage: 24kB
+                    Worker 1:  Batches: 1  Memory Usage: 24kB
+                    ->  Parallel Hash Join  (cost=164842.50..392050.88 rows=2370235 width=17) (actual time=1845.550..2404.667 rows=2068697 loops=3)
+                          Hash Cond: (a.siren = e.siren)
+                          Buffers: shared hit=15991 read=155113, temp read=74548 written=75072
+                          ->  Hash Join  (cost=356.25..153695.97 rows=3817010 width=27) (actual time=1.867..727.644 rows=3334151 loops=3)
+                                Hash Cond: (a.jour = t.jour)
+                                Buffers: shared hit=4248 read=91944
+                                ->  Parallel Seq Scan on fait_annonce a  (cost=0.00..141389.11 rows=4550911 width=29) (actual time=0.026..199.470 rows=3639029 loops=3)
+                                      Buffers: shared hit=3936 read=91944
+                                ->  Hash  (cost=237.54..237.54 rows=9497 width=6) (actual time=1.789..1.790 rows=9497 loops=3)
+                                      Buckets: 16384  Batches: 1  Memory Usage: 499kB
+                                      Buffers: shared hit=288
+                                      ->  Seq Scan on dim_temps t  (cost=0.00..237.54 rows=9497 width=6) (actual time=0.036..0.817 rows=9497 loops=3)
+                                            Filter: (annee <= 2025)
+                                            Rows Removed by Filter: 1826
+                                            Buffers: shared hit=288
+                          ->  Parallel Hash  (cost=122967.49..122967.49 rows=2388461 width=10) (actual time=523.105..523.106 rows=1901403 loops=3)
+                                Buckets: 262144  Batches: 64  Memory Usage: 6272kB
+                                Buffers: shared hit=11719 read=63169, temp written=20904
+                                ->  Parallel Seq Scan on dim_entreprise e  (cost=0.00..122967.49 rows=2388461 width=10) (actual time=7.719..255.322 rows=1901403 loops=3)
+                                      Filter: ((type_personne)::text = 'pm'::text)
+                                      Rows Removed by Filter: 1178282
+                                      Buffers: shared hit=11719 read=63169
+Planning:
+  Buffers: shared hit=25
+Planning Time: 0.238 ms
+JIT:
+  Functions: 81
+  Options: Inlining false, Optimization false, Expressions true, Deforming true
+  Timing: Generation 2.151 ms, Inlining 0.000 ms, Optimization 1.012 ms, Emission 22.291 ms, Total 25.454 ms
+Execution Time: 2757.391 ms

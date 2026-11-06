@@ -1,0 +1,52 @@
+---
+title: "Speak with data"
+subtitle: "Sociétés créées, radiées et impôt sur les bénéfices"
+date: today
+date-format: "D MMMM YYYY"
+lang: fr
+format:
+  typst:
+    papersize: a4
+    margin: {x: 2cm, y: 2cm}
+execute:
+  echo: false
+  warning: false
+jupyter: python3
+---
+
+```{python}
+# Même connexion et mêmes fonctions que le notebook Jupyter (commun/graphiques.py)
+import os
+import duckdb
+from IPython.display import Markdown
+import graphiques
+
+con = duckdb.connect()
+con.execute("LOAD postgres")
+con.execute(f"ATTACH '{os.environ['DW_DSN']}' AS dw (TYPE postgres, READ_ONLY)")
+```
+
+## Sociétés créées et radiées par année
+
+Les radiations d'office (nettoyage administratif du registre) sont séparées des autres radiations.
+
+```{python}
+# Même figure que dans Jupyter, version Scatter (image), sur toute la largeur de la page
+graphiques.creations_radiations(con, webgl=False).write_image("creations_radiations.png", width=900, height=450, scale=3)
+Markdown("![](creations_radiations.png){width=100%}")
+```
+
+## Impôt sur les bénéfices par taille d'entreprise (2023)
+
+```{python}
+t = graphiques.is_par_tranche(con)
+entier = lambda n: f"{n:,}".replace(",", " ")        # 412 345
+decimal = lambda x: f"{x:.2f}".replace(".", ",")      # 41,27
+lignes = [f"| {r.tranche_ca} | {entier(r.entreprises)} | {entier(r.payent_is)} | {decimal(r.is_md_eur)} |"
+          for r in t.itertuples()]
+Markdown("\n".join([
+    "| Tranche de chiffre d'affaires | Entreprises | Payent l'IS | IS (Md€) |",
+    "|:--|--:|--:|--:|",
+    *lignes,
+]))
+```

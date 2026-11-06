@@ -74,7 +74,11 @@ services:
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
     ports: ["127.0.0.1:8080:8080"]
-    volumes: [./dags:/opt/airflow/dags, ./commun:/opt/airflow/commun:ro, ./graphs:/opt/airflow/graphs]
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./commun:/opt/airflow/commun:ro
+      - ./graphs:/opt/airflow/graphs
+      - ./rapport:/opt/airflow/rapport
     depends_on:
       dw: {condition: service_healthy}
       datalake-init: {condition: service_completed_successfully}

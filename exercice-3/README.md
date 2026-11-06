@@ -36,7 +36,7 @@ Le DAG prend environ 20 minutes (dont 15 pour insérer les 9,4 M annonces dans P
 
 Les ports n'écoutent que sur `127.0.0.1` : les services, sans mot de passe pour Airflow et Jupyter, ne sont pas accessibles depuis le réseau.
 
-Airflow et Jupyter partagent la même image (`Dockerfile`) : Airflow 3.3, DuckDB, JupyterLab, Plotly et Chromium (pour l'export PNG). DuckDB lit et écrit directement dans le bucket et dans PostgreSQL : pas de fichier intermédiaire en local.
+Airflow et Jupyter partagent la même image (`Dockerfile`) : Airflow 3.3, DuckDB, JupyterLab, Plotly, Chromium (pour l'export PNG) et Quarto (pour le rapport PDF). DuckDB lit et écrit directement dans le bucket et dans PostgreSQL : pas de fichier intermédiaire en local.
 
 MinIO a été remplacé par RustFS parce que les images MinIO ne sont plus publiées sur Docker Hub. Le protocole S3 est le même.
 
@@ -119,6 +119,16 @@ Il écrit deux versions de chaque graphique dans `graphs/` (non versionné) :
 | `<nom>.png` | `Scatter`, rendu par kaleido + Chromium | Rapport PDF |
 
 Le site (`site/`) ne dépend que de Flask : il liste les HTML de `graphs/` et les affiche, sans accès à la base ni code de dataviz. Ajouter un graphique : une fonction dans `commun/graphiques.py`, inscrite dans `GRAPHIQUES`.
+
+## Rapport PDF
+
+Le DAG `rapport` (lancement manuel) produit `rapport/pdf/rapport.pdf` (non versionné) : le graphique et le tableau du notebook, sur une page.
+
+```bash
+docker compose exec airflow airflow dags trigger rapport
+```
+
+La source est `rapport/rapport.qmd`, un document [Quarto](https://quarto.org) : du Markdown avec des cellules Python exécutées au rendu. Elles appellent `commun/graphiques.py` exactement comme le notebook (`creations_radiations`, `is_par_tranche`), donc les chiffres et le graphique sont les mêmes. Le PDF est composé par [Typst](https://typst.app), inclus dans Quarto : pas de LaTeX à installer.
 
 ## Forme finale des données
 

@@ -1,39 +1,37 @@
 -- Une entreprise : annonces et bilans d'un SIREN
-SELECT 'annonce' AS source, jour AS date, type_annonce AS detail FROM fait_annonce
+SELECT 'annonce' AS source, jour AS date, type_annonce::text AS detail FROM fait_annonce
         WHERE siren = (SELECT max(siren) FROM fait_bilan)
         UNION ALL
-        SELECT 'bilan', date_cloture, type_bilan FROM fait_bilan
+        SELECT 'bilan', date_cloture, type_bilan::text FROM fait_bilan
         WHERE siren = (SELECT max(siren) FROM fait_bilan)
 
-Append  (cost=0.94..39.93 rows=13 width=68) (actual time=0.013..0.024 rows=3 loops=1)
-  Buffers: shared hit=18
-  ->  Index Scan using fait_annonce_siren_idx on fait_annonce  (cost=0.94..12.96 rows=2 width=45) (actual time=0.013..0.014 rows=1 loops=1)
+Append  (cost=0.91..40.57 rows=8 width=68) (actual time=0.010..0.019 rows=3 loops=1)
+  Buffers: shared hit=17
+  ->  Index Scan using fait_annonce_siren_idx on fait_annonce  (cost=0.91..12.08 rows=2 width=68) (actual time=0.010..0.011 rows=1 loops=1)
         Index Cond: (siren = $1)
-        Buffers: shared hit=9
+        Buffers: shared hit=8
         InitPlan 2 (returns $1)
-          ->  Result  (cost=0.49..0.50 rows=1 width=32) (actual time=0.008..0.008 rows=1 loops=1)
-                Buffers: shared hit=5
+          ->  Result  (cost=0.46..0.47 rows=1 width=4) (actual time=0.007..0.007 rows=1 loops=1)
+                Buffers: shared hit=4
                 InitPlan 1 (returns $0)
-                  ->  Limit  (cost=0.43..0.49 rows=1 width=10) (actual time=0.007..0.007 rows=1 loops=1)
-                        Buffers: shared hit=5
-                        ->  Index Only Scan Backward using fait_bilan_pkey on fait_bilan fait_bilan_1  (cost=0.43..371524.13 rows=6336537 width=10) (actual time=0.007..0.007 rows=1 loops=1)
+                  ->  Limit  (cost=0.43..0.46 rows=1 width=4) (actual time=0.006..0.006 rows=1 loops=1)
+                        Buffers: shared hit=4
+                        ->  Index Only Scan Backward using fait_bilan_pkey on fait_bilan fait_bilan_1  (cost=0.43..180558.76 rows=6335450 width=4) (actual time=0.006..0.006 rows=1 loops=1)
                               Index Cond: (siren IS NOT NULL)
-                              Heap Fetches: 1
-                              Buffers: shared hit=5
-  ->  Subquery Scan on "*SELECT* 2"  (cost=0.93..26.91 rows=11 width=68) (actual time=0.009..0.009 rows=2 loops=1)
+                              Heap Fetches: 0
+                              Buffers: shared hit=4
+  ->  Index Scan using fait_bilan_pkey on fait_bilan  (cost=0.90..28.45 rows=6 width=68) (actual time=0.006..0.007 rows=2 loops=1)
+        Index Cond: (siren = $3)
         Buffers: shared hit=9
-        ->  Index Scan using fait_bilan_pkey on fait_bilan  (cost=0.93..26.77 rows=11 width=38) (actual time=0.008..0.008 rows=2 loops=1)
-              Index Cond: (siren = $3)
-              Buffers: shared hit=9
-              InitPlan 4 (returns $3)
-                ->  Result  (cost=0.49..0.50 rows=1 width=32) (actual time=0.005..0.005 rows=1 loops=1)
-                      Buffers: shared hit=5
-                      InitPlan 3 (returns $2)
-                        ->  Limit  (cost=0.43..0.49 rows=1 width=10) (actual time=0.005..0.005 rows=1 loops=1)
-                              Buffers: shared hit=5
-                              ->  Index Only Scan Backward using fait_bilan_pkey on fait_bilan fait_bilan_2  (cost=0.43..371524.13 rows=6336537 width=10) (actual time=0.005..0.005 rows=1 loops=1)
-                                    Index Cond: (siren IS NOT NULL)
-                                    Heap Fetches: 1
-                                    Buffers: shared hit=5
-Planning Time: 0.089 ms
-Execution Time: 0.037 ms
+        InitPlan 4 (returns $3)
+          ->  Result  (cost=0.46..0.47 rows=1 width=4) (actual time=0.004..0.005 rows=1 loops=1)
+                Buffers: shared hit=4
+                InitPlan 3 (returns $2)
+                  ->  Limit  (cost=0.43..0.46 rows=1 width=4) (actual time=0.004..0.004 rows=1 loops=1)
+                        Buffers: shared hit=4
+                        ->  Index Only Scan Backward using fait_bilan_pkey on fait_bilan fait_bilan_2  (cost=0.43..180558.76 rows=6335450 width=4) (actual time=0.004..0.004 rows=1 loops=1)
+                              Index Cond: (siren IS NOT NULL)
+                              Heap Fetches: 0
+                              Buffers: shared hit=4
+Planning Time: 0.081 ms
+Execution Time: 0.031 ms

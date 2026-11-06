@@ -12,41 +12,36 @@ SELECT CASE WHEN chiffre_affaires < 1e5 THEN '1. < 100 k€'
         WHERE t.annee = 2023 AND chiffre_affaires > 0 AND resultat IS NOT NULL
         GROUP BY 1 ORDER BY 1
 
-Finalize GroupAggregate  (cost=105215.21..121780.34 rows=100433 width=80) (actual time=363.857..372.032 rows=5 loops=1)
+GroupAggregate  (cost=73353.19..90728.05 rows=100879 width=80) (actual time=230.800..306.357 rows=5 loops=1)
   Group Key: (CASE WHEN ((b.chiffre_affaires)::numeric < '100000'::numeric) THEN '1. < 100 k€'::text WHEN ((b.chiffre_affaires)::numeric < '1000000'::numeric) THEN '2. 100 k€ - 1 M€'::text WHEN ((b.chiffre_affaires)::numeric < '10000000'::numeric) THEN '3. 1 - 10 M€'::text WHEN ((b.chiffre_affaires)::numeric < '50000000'::numeric) THEN '4. 10 - 50 M€'::text ELSE '5. >= 50 M€'::text END)
-  Buffers: shared hit=964 read=62934, temp read=1677 written=1683
-  ->  Gather Merge  (cost=105215.21..116967.93 rows=83694 width=80) (actual time=356.005..371.982 rows=15 loops=1)
-        Workers Planned: 2
-        Workers Launched: 2
-        Buffers: shared hit=964 read=62934, temp read=1677 written=1683
-        ->  Partial GroupAggregate  (cost=104215.19..106307.54 rows=41847 width=80) (actual time=330.608..345.547 rows=5 loops=3)
-              Group Key: (CASE WHEN ((b.chiffre_affaires)::numeric < '100000'::numeric) THEN '1. < 100 k€'::text WHEN ((b.chiffre_affaires)::numeric < '1000000'::numeric) THEN '2. 100 k€ - 1 M€'::text WHEN ((b.chiffre_affaires)::numeric < '10000000'::numeric) THEN '3. 1 - 10 M€'::text WHEN ((b.chiffre_affaires)::numeric < '50000000'::numeric) THEN '4. 10 - 50 M€'::text ELSE '5. >= 50 M€'::text END)
-              Buffers: shared hit=964 read=62934, temp read=1677 written=1683
-              ->  Sort  (cost=104215.19..104319.81 rows=41847 width=40) (actual time=325.523..334.824 rows=123278 loops=3)
-                    Sort Key: (CASE WHEN ((b.chiffre_affaires)::numeric < '100000'::numeric) THEN '1. < 100 k€'::text WHEN ((b.chiffre_affaires)::numeric < '1000000'::numeric) THEN '2. 100 k€ - 1 M€'::text WHEN ((b.chiffre_affaires)::numeric < '10000000'::numeric) THEN '3. 1 - 10 M€'::text WHEN ((b.chiffre_affaires)::numeric < '50000000'::numeric) THEN '4. 10 - 50 M€'::text ELSE '5. >= 50 M€'::text END)
-                    Sort Method: external merge  Disk: 4704kB
-                    Buffers: shared hit=964 read=62934, temp read=1677 written=1683
-                    Worker 0:  Sort Method: external merge  Disk: 4408kB
-                    Worker 1:  Sort Method: external merge  Disk: 4304kB
-                    ->  Hash Join  (cost=242.10..101002.84 rows=41847 width=40) (actual time=8.066..301.039 rows=123278 loops=3)
-                          Hash Cond: (b.date_cloture = t.jour)
-                          Buffers: shared hit=890 read=62934
-                          ->  Parallel Seq Scan on fait_bilan b  (cost=0.00..96514.80 rows=1298180 width=20) (actual time=7.547..203.450 rows=1369644 loops=3)
-                                Filter: ((resultat IS NOT NULL) AND (chiffre_affaires > 0))
-                                Rows Removed by Filter: 742360
-                                Buffers: shared hit=578 read=62934
-                          ->  Hash  (cost=237.54..237.54 rows=365 width=4) (actual time=0.487..0.488 rows=365 loops=3)
-                                Buckets: 1024  Batches: 1  Memory Usage: 21kB
-                                Buffers: shared hit=288
-                                ->  Seq Scan on dim_temps t  (cost=0.00..237.54 rows=365 width=4) (actual time=0.321..0.455 rows=365 loops=3)
-                                      Filter: (annee = 2023)
-                                      Rows Removed by Filter: 10958
-                                      Buffers: shared hit=288
+  Buffers: shared hit=48594
+  ->  Gather Merge  (cost=73353.19..85431.90 rows=100879 width=40) (actual time=208.011..264.847 rows=369834 loops=1)
+        Workers Planned: 4
+        Workers Launched: 4
+        Buffers: shared hit=48594
+        ->  Sort  (cost=72353.13..72416.18 rows=25220 width=40) (actual time=195.276..199.440 rows=73967 loops=5)
+              Sort Key: (CASE WHEN ((b.chiffre_affaires)::numeric < '100000'::numeric) THEN '1. < 100 k€'::text WHEN ((b.chiffre_affaires)::numeric < '1000000'::numeric) THEN '2. 100 k€ - 1 M€'::text WHEN ((b.chiffre_affaires)::numeric < '10000000'::numeric) THEN '3. 1 - 10 M€'::text WHEN ((b.chiffre_affaires)::numeric < '50000000'::numeric) THEN '4. 10 - 50 M€'::text ELSE '5. >= 50 M€'::text END)
+              Sort Method: quicksort  Memory: 4504kB
+              Buffers: shared hit=48594
+              Worker 0:  Sort Method: quicksort  Memory: 7235kB
+              Worker 1:  Sort Method: quicksort  Memory: 4480kB
+              Worker 2:  Sort Method: quicksort  Memory: 7303kB
+              Worker 3:  Sort Method: quicksort  Memory: 7177kB
+              ->  Hash Join  (cost=208.10..70509.26 rows=25220 width=40) (actual time=132.783..182.935 rows=73967 loops=5)
+                    Hash Cond: (b.date_cloture = t.jour)
+                    Buffers: shared hit=48446
+                    ->  Parallel Seq Scan on fait_bilan b  (cost=0.00..67742.28 rows=782366 width=20) (actual time=0.018..109.361 rows=821787 loops=5)
+                          Filter: ((resultat IS NOT NULL) AND (chiffre_affaires > 0))
+                          Rows Removed by Filter: 445416
+                          Buffers: shared hit=47944
+                    ->  Hash  (cost=203.54..203.54 rows=365 width=4) (actual time=0.782..0.783 rows=365 loops=5)
+                          Buckets: 1024  Batches: 1  Memory Usage: 21kB
+                          Buffers: shared hit=310
+                          ->  Seq Scan on dim_temps t  (cost=0.00..203.54 rows=365 width=4) (actual time=0.555..0.737 rows=365 loops=5)
+                                Filter: (annee = 2023)
+                                Rows Removed by Filter: 10958
+                                Buffers: shared hit=310
 Planning:
-  Buffers: shared hit=10
-Planning Time: 0.174 ms
-JIT:
-  Functions: 60
-  Options: Inlining false, Optimization false, Expressions true, Deforming true
-  Timing: Generation 2.319 ms, Inlining 0.000 ms, Optimization 0.959 ms, Emission 21.765 ms, Total 25.044 ms
-Execution Time: 374.286 ms
+  Buffers: shared hit=1
+Planning Time: 0.141 ms
+Execution Time: 306.400 ms

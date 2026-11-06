@@ -4,41 +4,44 @@ SELECT a.departement_code, count(*) AS creations
         WHERE a.type_annonce = 'creation' AND a.jour BETWEEN DATE '2023-01-01' AND DATE '2023-03-31'
         GROUP BY 1 ORDER BY 2 DESC
 
-Sort  (cost=152965.94..152966.19 rows=101 width=11) (actual time=25.804..29.412 rows=100 loops=1)
+Sort  (cost=76013.72..76013.98 rows=101 width=11) (actual time=20.061..23.619 rows=100 loops=1)
   Sort Key: (count(*)) DESC
   Sort Method: quicksort  Memory: 28kB
-  Buffers: shared hit=2082
-  ->  Finalize GroupAggregate  (cost=152936.99..152962.58 rows=101 width=11) (actual time=25.691..29.391 rows=100 loops=1)
+  Buffers: shared hit=1443
+  ->  Finalize GroupAggregate  (cost=75958.96..76010.36 rows=101 width=11) (actual time=19.900..23.601 rows=100 loops=1)
         Group Key: departement_code
-        Buffers: shared hit=2082
-        ->  Gather Merge  (cost=152936.99..152960.56 rows=202 width=11) (actual time=25.680..29.341 rows=300 loops=1)
-              Workers Planned: 2
-              Workers Launched: 2
-              Buffers: shared hit=2082
-              ->  Sort  (cost=151936.97..151937.22 rows=101 width=11) (actual time=15.389..15.393 rows=100 loops=3)
+        Buffers: shared hit=1443
+        ->  Gather Merge  (cost=75958.96..76007.33 rows=404 width=11) (actual time=19.878..23.526 rows=496 loops=1)
+              Workers Planned: 4
+              Workers Launched: 4
+              Buffers: shared hit=1443
+              ->  Sort  (cost=74958.90..74959.15 rows=101 width=11) (actual time=8.039..8.043 rows=99 loops=5)
                     Sort Key: departement_code
                     Sort Method: quicksort  Memory: 28kB
-                    Buffers: shared hit=2082
+                    Buffers: shared hit=1443
                     Worker 0:  Sort Method: quicksort  Memory: 28kB
                     Worker 1:  Sort Method: quicksort  Memory: 28kB
-                    ->  Partial HashAggregate  (cost=151932.59..151933.60 rows=101 width=11) (actual time=15.322..15.331 rows=100 loops=3)
+                    Worker 2:  Sort Method: quicksort  Memory: 28kB
+                    Worker 3:  Sort Method: quicksort  Memory: 28kB
+                    ->  Partial HashAggregate  (cost=74954.53..74955.54 rows=101 width=11) (actual time=7.972..7.982 rows=99 loops=5)
                           Group Key: departement_code
                           Batches: 1  Memory Usage: 24kB
-                          Buffers: shared hit=2066
+                          Buffers: shared hit=1411
                           Worker 0:  Batches: 1  Memory Usage: 24kB
                           Worker 1:  Batches: 1  Memory Usage: 24kB
-                          ->  Parallel Bitmap Heap Scan on fait_annonce a  (cost=2867.90..151675.23 rows=51472 width=3) (actual time=5.424..11.280 rows=35384 loops=3)
+                          Worker 2:  Batches: 1  Memory Usage: 24kB
+                          Worker 3:  Batches: 1  Memory Usage: 24kB
+                          ->  Parallel Bitmap Heap Scan on fait_annonce a  (cost=45.04..74811.10 rows=28685 width=3) (actual time=0.277..5.150 rows=21230 loops=5)
                                 Recheck Cond: ((jour >= '2023-01-01'::date) AND (jour <= '2023-03-31'::date))
-                                Filter: ((type_annonce)::text = 'creation'::text)
-                                Rows Removed by Filter: 26938
-                                Heap Blocks: exact=997
-                                Buffers: shared hit=2066
-                                ->  Bitmap Index Scan on fait_annonce_jour_idx  (cost=0.00..2837.01 rows=202458 width=0) (actual time=3.194..3.194 rows=186966 loops=1)
+                                Rows Removed by Index Recheck: 4075
+                                Filter: (type_annonce = 'creation'::type_annonce)
+                                Rows Removed by Filter: 16163
+                                Heap Blocks: lossy=716
+                                Buffers: shared hit=1411
+                                ->  Bitmap Index Scan on fait_annonce_jour_idx  (cost=0.00..16.35 rows=208015 width=0) (actual time=0.275..0.276 rows=14080 loops=1)
                                       Index Cond: ((jour >= '2023-01-01'::date) AND (jour <= '2023-03-31'::date))
-                                      Buffers: shared hit=183
-Planning Time: 0.082 ms
-JIT:
-  Functions: 30
-  Options: Inlining false, Optimization false, Expressions true, Deforming true
-  Timing: Generation 1.164 ms, Inlining 0.000 ms, Optimization 0.823 ms, Emission 12.073 ms, Total 14.060 ms
-Execution Time: 29.875 ms
+                                      Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.098 ms
+Execution Time: 23.658 ms

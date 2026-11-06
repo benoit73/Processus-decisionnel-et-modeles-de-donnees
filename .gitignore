@@ -12,10 +12,3 @@ __pycache__/
 *.log
 *.out
 *.synctex.gz
-
-# Graphiques générés par le DAG publication_graphiques (exercice 3)
-exercice-3/graphs/*
-!exercice-3/graphs/.gitkeep
-
-# Rapport PDF généré par le DAG rapport (exercice 3)
-exercice-3/rapport/pdf/

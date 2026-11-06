@@ -48,6 +48,22 @@ services:
   # Data warehouse (base dw) + métadonnées Airflow (base airflow)
   dw:
     image: postgres:16
+    # Réglages pour un data warehouse (défauts PostgreSQL : 128 Mo de cache, 4 Mo par tri/hachage)
+    command:
+      - postgres
+      - -c
+      - shared_buffers=2GB             # cache de PostgreSQL : les faits y tiennent
+      - -c
+      - work_mem=128MB                 # jointures et agrégats en mémoire au lieu de fichiers temporaires
+      - -c
+      - maintenance_work_mem=1GB       # construction des index et VACUUM
+      - -c
+      - effective_cache_size=8GB       # mémoire disponible (cache système compris), pour le planificateur
+      - -c
+      - max_parallel_workers_per_gather=4
+      - -c
+      - max_wal_size=4GB               # moins de checkpoints pendant le chargement
+    shm_size: 2gb                      # mémoire partagée pour les workers parallèles
     environment:
       POSTGRES_USER: dw
       POSTGRES_PASSWORD: dw
@@ -82,6 +98,7 @@ services:
       - ./graphs:/opt/airflow/graphs
       - ./rapport:/opt/airflow/rapport
       - ./mesures:/opt/airflow/mesures
+      - ./sql:/opt/airflow/sql:ro
     depends_on:
       dw: {condition: service_healthy}
       datalake-init: {condition: service_completed_successfully}

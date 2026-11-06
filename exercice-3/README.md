@@ -52,7 +52,7 @@ flowchart LR
         C2[clean/bilans.parquet]
     end
     subgraph dw[Data warehouse PostgreSQL]
-        D[dim_temps, dim_territoire, dim_entreprise]
+        D[dim_temps, dim_territoire, dim_forme_juridique, dim_entreprise]
         F1[fait_annonce]
         F2[fait_bilan]
     end
@@ -68,9 +68,9 @@ flowchart LR
 ```mermaid
 flowchart LR
     V[verifier_sources] --> NA[nettoyer_annonces] & NB[nettoyer_bilans]
-    NA & NB --> CD[charger_dimensions]
+    NA & NB --> CS[creer_schema] --> CD[charger_dimensions]
     CD --> FA[charger_fait_annonce] & FB[charger_fait_bilan]
-    FA & FB --> CT[controler]
+    FA & FB --> IX[indexer] --> CT[controler]
 ```
 
 | Tâche | Ce qu'elle fait |
@@ -78,8 +78,10 @@ flowchart LR
 | `verifier_sources` | Échoue si un des 3 fichiers bruts manque dans le bucket. |
 | `nettoyer_annonces` | Fusionne créations et radiations, garde les avis initiaux, extrait le SIREN, le type de personne et la forme juridique, classe le motif de radiation. Écrit `clean/annonces.parquet`. |
 | `nettoyer_bilans` | Garde les comptes sociaux, un bilan par SIREN et par exercice, extrait CA, résultat et impôt de la liasse fiscale. Écrit `clean/bilans.parquet`. |
-| `charger_dimensions` | Vide le data warehouse puis charge les 3 dimensions. Le DAG peut donc être relancé sans doublons. |
-| `charger_fait_annonce`, `charger_fait_bilan` | Chargent les faits, en parallèle. |
+| `creer_schema` | Recrée les tables vides et sans index (`sql/01_dw.sql`). Le DAG peut donc être relancé sans doublons. |
+| `charger_dimensions` | Charge les 4 dimensions. |
+| `charger_fait_annonce`, `charger_fait_bilan` | Chargent les faits, en parallèle, triés par date. |
+| `indexer` | Crée clés primaires, clés étrangères et index en une fois (`sql/02_index.sql`), puis `VACUUM ANALYZE`. |
 | `controler` | Échoue si une table est vide ; affiche le nombre de lignes et l'indicateur de l'exercice 1 (sociétés créées / radiées hors radiations d'office, par année). |
 
 ### Règles de nettoyage
@@ -145,6 +147,43 @@ docker compose exec airflow airflow dags trigger mesures -c '{"etiquette": "apre
 
 Même méthode avant et après une optimisation : comparer `mesures/avant/resultats.md` et `mesures/apres/resultats.md`.
 
+## Optimisation de la base
+
+Mesures complètes : [`mesures/avant/`](mesures/avant/resultats.md) et [`mesures/apres/`](mesures/apres/resultats.md), même DAG, mêmes requêtes, mêmes données (10,9 M annonces, 6,3 M bilans, 9,2 M entreprises).
+
+| | Avant | Après | Gain |
+|---|--:|--:|--:|
+| Taille de la base | 3 356 Mo | 2 110 Mo | **−37 %** |
+| dont index | 1 517 Mo | 787 Mo | **−48 %** |
+| `fait_annonce` (octets / ligne, index compris) | 158 | 99 | −37 % |
+| Requête annuelle du notebook (`creations_radiations`) | 2 961 ms | 1 727 ms | **−42 %** |
+| Indicateur de `controler` | 3 185 ms | 1 759 ms | −45 % |
+| IS par tranche de CA, 2023 | 375 ms | 277 ms | −26 % |
+| Créations par département, 1 trimestre | 30,7 ms | 23,9 ms | −22 % |
+| Chargement complet (`chargement_dw`) | 436 s | 62 s | **÷ 7** |
+| dont insertion de `fait_annonce` | 349 s | 8 s | ÷ 44 |
+
+**Volume : des types plus compacts** (`sql/01_dw.sql`). Chaque octet gagné l'est sur des millions de lignes, et aussi dans chaque index qui contient la colonne.
+
+- `siren` : `CHAR(9)` → `INTEGER` (10 → 4 octets), dans 3 tables et 3 index. Les zéros de tête se restituent avec `lpad(siren::text, 9, '0')`.
+- `annonce_id` : `VARCHAR` → `BIGINT`, la lettre devenant un chiffre (`A2008000110` → `12008000110`) : la clé primaire passe de 429 à 234 Mo.
+- Valeurs fermées en `ENUM` (4 octets au lieu du texte) : `type_annonce`, `motif_radiation`, `confidentialite` ; `type_bilan` en `"char"` (1 octet).
+- `forme_juridique` sortie dans `dim_forme_juridique` : ~1 800 libellés stockés une fois, une clé `SMALLINT` dans `dim_entreprise` (107 → 64 octets par ligne).
+- Colonnes de 8 octets en tête de ligne : PostgreSQL aligne les valeurs, un `BIGINT` après un `DATE` laisserait 4 octets vides.
+
+**Index : moins nombreux, mieux choisis** (`sql/02_index.sql`).
+
+- Les faits sont insérés **triés par date** (corrélation date / position sur disque : 0,53 → 1). Un index **BRIN**, qui ne garde que le min et le max de chaque bloc de pages, suffit alors pour les filtres sur une période : 85 Mo → 0,02 Mo pour `jour`, 42 Mo → 0,02 Mo pour `date_cloture`.
+- Le B-tree sur `fait_annonce.siren` est gardé : il sert l'accès à l'historique d'une entreprise (0,04 ms).
+
+**Chargement : index et contraintes après l'insertion** (`chargement_dw`). Mettre à jour 4 index et 3 clés étrangères à chaque ligne insérée coûtait 80 % du temps. Le DAG recrée maintenant les tables nues (`creer_schema`), insère, puis construit clés et index en une fois (`indexer`, 27 s). Il finit par `VACUUM ANALYZE` : statistiques à jour pour le planificateur et carte de visibilité pour les lectures d'index seul.
+
+**Configuration de PostgreSQL** (`docker-compose.yml`). Avant, réglages par défaut : 128 Mo de cache (`shared_buffers`), 4 Mo par jointure (`work_mem`). Les plans montraient alors 1,2 Go relus hors du cache et 580 Mo de fichiers temporaires pour la jointure avec `dim_entreprise`. Avec 2 Go de cache, 128 Mo par jointure et 4 workers parallèles, tout est servi depuis la mémoire, sans fichier temporaire (voir `plans/`).
+
+**Requêtes inchangées.** Le notebook, le rapport et `controler` n'ont pas été modifiés. Seule `historique_entreprise` (dans `mesures`) prend un `::text`, parce qu'un `UNION` ne peut pas mélanger deux `ENUM` différents.
+
+**Piste suivante.** Les requêtes annuelles passent maintenant leur temps à joindre 10,9 M annonces à 5,7 M sociétés. Pour aller plus loin, il faut changer de stratégie : une vue matérialisée par année, département et type (rafraîchie par le DAG) ramènerait ces requêtes à quelques millisecondes ; ou un stockage en colonnes (extension `pg_duckdb`, Citus columnar), qui compresse et ne lit que les colonnes utiles.
+
 ## Forme finale des données
 
 **Deux étapes de stockage.** `raw/` garde les fichiers tels que téléchargés : on peut toujours tout recalculer. `clean/` contient les données nettoyées, au format du data warehouse, en Parquet : on les relit dans Jupyter sans toucher à la base, et le chargement ne refait pas le nettoyage.
@@ -152,7 +191,7 @@ Même méthode avant et après une optimisation : comparer `mesures/avant/result
 **Un schéma en étoile dans le data warehouse.** Les questions de l'exercice 1 se posent toutes de la même façon : *combien* (annonces, impôt, chiffre d'affaires) *par* année, département, type d'entreprise. Les faits portent ce qu'on compte ou additionne, les dimensions ce par quoi on découpe :
 
 - **deux faits**, parce qu'ils n'ont pas le même grain : une annonce est un événement daté, un bilan est un exercice comptable ;
-- **trois dimensions partagées** : le SIREN relie annonces et bilans (survie, impôt des sociétés créées) ; la date et le département permettent de comparer avant et après une réforme, et territoire par territoire ;
+- **trois dimensions partagées**, plus `dim_forme_juridique` qui évite de répéter ~1 800 libellés sur 9 M d'entreprises : le SIREN relie annonces et bilans (survie, impôt des sociétés créées) ; la date et le département permettent de comparer avant et après une réforme, et territoire par territoire ;
 - les noms des personnes ne sont pas repris : ils ne servent à aucun indicateur.
 
 ### MCD
@@ -198,7 +237,7 @@ erDiagram
 
 ### MLD
 
-Créé au premier démarrage de PostgreSQL par `sql/01_dw.sql`.
+Tables : `sql/01_dw.sql` ; clés et index : `sql/02_index.sql`. Les deux sont exécutés au premier démarrage de PostgreSQL, puis par `chargement_dw`.
 
 ```mermaid
 erDiagram
@@ -207,6 +246,7 @@ erDiagram
     dim_temps ||--o{ fait_annonce : jour
     dim_temps ||--o{ fait_bilan : date_cloture
     dim_territoire ||--o{ fait_annonce : departement_code
+    dim_forme_juridique |o--o{ dim_entreprise : forme_juridique_id
 
     dim_temps {
         date jour PK
@@ -220,26 +260,30 @@ erDiagram
         varchar region_code
         varchar region_nom
     }
+    dim_forme_juridique {
+        smallint forme_juridique_id PK
+        varchar libelle
+    }
     dim_entreprise {
-        char siren PK
+        integer siren PK
+        smallint forme_juridique_id FK
         varchar type_personne
-        varchar forme_juridique
     }
     fait_annonce {
-        varchar annonce_id PK
-        char siren FK
+        bigint annonce_id PK
+        integer siren FK
         date jour FK
+        enum type_annonce
+        enum motif_radiation
         varchar departement_code FK
-        varchar type_annonce
-        varchar motif_radiation
     }
     fait_bilan {
-        char siren PK, FK
-        date date_cloture PK, FK
-        char type_bilan
-        varchar confidentialite
         bigint chiffre_affaires
         bigint resultat
         bigint impot_benefices
+        integer siren PK, FK
+        date date_cloture PK, FK
+        enum confidentialite
+        char type_bilan
     }
 ```

@@ -17,7 +17,7 @@ import psycopg2
 from airflow.sdk import Param, dag, get_current_context, task
 
 SORTIE = Path(os.environ["MESURES_DIR"])
-TABLES = ("dim_temps", "dim_territoire", "dim_entreprise", "fait_annonce", "fait_bilan")
+TABLES = ("dim_temps", "dim_territoire", "dim_forme_juridique", "dim_entreprise", "fait_annonce", "fait_bilan")
 EXECUTIONS = 5  # après une exécution de chauffe : on garde la médiane (cache chaud)
 
 # Requêtes de référence : celles du projet, plus deux accès typiques (une entreprise, une période).
@@ -65,10 +65,10 @@ REQUETES = {
         GROUP BY 1 ORDER BY 2 DESC
     """),
     "historique_entreprise": ("Une entreprise : annonces et bilans d'un SIREN", """
-        SELECT 'annonce' AS source, jour AS date, type_annonce AS detail FROM fait_annonce
+        SELECT 'annonce' AS source, jour AS date, type_annonce::text AS detail FROM fait_annonce
         WHERE siren = (SELECT max(siren) FROM fait_bilan)
         UNION ALL
-        SELECT 'bilan', date_cloture, type_bilan FROM fait_bilan
+        SELECT 'bilan', date_cloture, type_bilan::text FROM fait_bilan
         WHERE siren = (SELECT max(siren) FROM fait_bilan)
     """),
 }

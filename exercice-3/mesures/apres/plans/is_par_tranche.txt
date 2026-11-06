@@ -1,0 +1,47 @@
+-- Notebook §4 et rapport : IS par tranche de CA (2023)
+SELECT CASE WHEN chiffre_affaires < 1e5 THEN '1. < 100 k€'
+                    WHEN chiffre_affaires < 1e6 THEN '2. 100 k€ - 1 M€'
+                    WHEN chiffre_affaires < 1e7 THEN '3. 1 - 10 M€'
+                    WHEN chiffre_affaires < 5e7 THEN '4. 10 - 50 M€'
+                    ELSE '5. >= 50 M€' END AS tranche_ca,
+               count(*) AS entreprises,
+               count(*) FILTER (WHERE impot_benefices > 0) AS payent_is,
+               round(sum(impot_benefices) FILTER (WHERE impot_benefices > 0) / 1e9, 2) AS is_md_eur
+        FROM fait_bilan b
+        JOIN dim_temps t ON t.jour = b.date_cloture
+        WHERE t.annee = 2023 AND chiffre_affaires > 0 AND resultat IS NOT NULL
+        GROUP BY 1 ORDER BY 1
+
+GroupAggregate  (cost=73353.19..90728.05 rows=100879 width=80) (actual time=227.212..298.100 rows=5 loops=1)
+  Group Key: (CASE WHEN ((b.chiffre_affaires)::numeric < '100000'::numeric) THEN '1. < 100 k€'::text WHEN ((b.chiffre_affaires)::numeric < '1000000'::numeric) THEN '2. 100 k€ - 1 M€'::text WHEN ((b.chiffre_affaires)::numeric < '10000000'::numeric) THEN '3. 1 - 10 M€'::text WHEN ((b.chiffre_affaires)::numeric < '50000000'::numeric) THEN '4. 10 - 50 M€'::text ELSE '5. >= 50 M€'::text END)
+  Buffers: shared hit=48594
+  ->  Gather Merge  (cost=73353.19..85431.90 rows=100879 width=40) (actual time=204.752..258.549 rows=369834 loops=1)
+        Workers Planned: 4
+        Workers Launched: 4
+        Buffers: shared hit=48594
+        ->  Sort  (cost=72353.13..72416.18 rows=25220 width=40) (actual time=192.499..196.044 rows=73967 loops=5)
+              Sort Key: (CASE WHEN ((b.chiffre_affaires)::numeric < '100000'::numeric) THEN '1. < 100 k€'::text WHEN ((b.chiffre_affaires)::numeric < '1000000'::numeric) THEN '2. 100 k€ - 1 M€'::text WHEN ((b.chiffre_affaires)::numeric < '10000000'::numeric) THEN '3. 1 - 10 M€'::text WHEN ((b.chiffre_affaires)::numeric < '50000000'::numeric) THEN '4. 10 - 50 M€'::text ELSE '5. >= 50 M€'::text END)
+              Sort Method: quicksort  Memory: 7325kB
+              Buffers: shared hit=48594
+              Worker 0:  Sort Method: quicksort  Memory: 7212kB
+              Worker 1:  Sort Method: quicksort  Memory: 7243kB
+              Worker 2:  Sort Method: quicksort  Memory: 4484kB
+              Worker 3:  Sort Method: quicksort  Memory: 4434kB
+              ->  Hash Join  (cost=208.10..70509.26 rows=25220 width=40) (actual time=131.440..180.711 rows=73967 loops=5)
+                    Hash Cond: (b.date_cloture = t.jour)
+                    Buffers: shared hit=48446
+                    ->  Parallel Seq Scan on fait_bilan b  (cost=0.00..67742.28 rows=782366 width=20) (actual time=0.011..107.949 rows=821787 loops=5)
+                          Filter: ((resultat IS NOT NULL) AND (chiffre_affaires > 0))
+                          Rows Removed by Filter: 445416
+                          Buffers: shared hit=47944
+                    ->  Hash  (cost=203.54..203.54 rows=365 width=4) (actual time=0.773..0.774 rows=365 loops=5)
+                          Buckets: 1024  Batches: 1  Memory Usage: 21kB
+                          Buffers: shared hit=310
+                          ->  Seq Scan on dim_temps t  (cost=0.00..203.54 rows=365 width=4) (actual time=0.548..0.729 rows=365 loops=5)
+                                Filter: (annee = 2023)
+                                Rows Removed by Filter: 10958
+                                Buffers: shared hit=310
+Planning:
+  Buffers: shared hit=1
+Planning Time: 0.141 ms
+Execution Time: 298.494 ms

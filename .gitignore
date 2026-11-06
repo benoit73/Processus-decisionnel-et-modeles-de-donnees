@@ -1,5 +1,7 @@
 # Données brutes (5 Go, à télécharger : voir data/README.md)
 data/*.parquet
+data/*.parquet.tmp
+data/bodacc_annees/
 
 # Python / Jupyter
 __pycache__/
